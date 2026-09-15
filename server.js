@@ -58,6 +58,14 @@ app.delete("/books/:id", (req, res) => {
   const deletedBook = books.splice(index, 1); 
 res.json({ message: "Book deleted", book: deletedBook[0] }); 
 }); 
+
+app.get("/health", (req, res) => {
+    res.json({
+        status: "OK",
+        message: "API is running"
+    });
+});
+
 app.listen(PORT, () => { 
 console.log(`Server running on http://localhost:${PORT}`); 
 }); 
