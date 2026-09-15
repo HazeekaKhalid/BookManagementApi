@@ -1,8 +1,25 @@
-const express = require("express"); 
-require("dotenv").config(); 
-const app = express(); 
-app.use(express.json()); 
-const PORT = process.env.PORT || 3000; 
+const express = require("express");
+require("dotenv").config();
+const cors = require("cors");
+const helmet = require("helmet");
+const morgan = require("morgan");
+const rateLimit = require("express-rate-limit");
+
+const app = express();
+
+app.use(express.json());
+app.use(cors());
+app.use(helmet());
+app.use(morgan("combined"));
+
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, 
+    max: 100 
+});
+
+app.use("/books", apiLimiter);
+
+const PORT = process.env.PORT || 3000;
  
 let books = [ 
   { id: 1, title: "The Harry Potter & The Philosopher's Stone", author: "J.K. Rowling" }, 
