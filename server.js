@@ -59,12 +59,11 @@ app.delete("/books/:id", (req, res) => {
 res.json({ message: "Book deleted", book: deletedBook[0] }); 
 }); 
 
-app.get("/health", (req, res) => {
+app.get('/', (req, res) => res.send("Hello from main branch"));
     res.json({
         status: "OK",
         message: "API is running"
     });
-});
 
 app.listen(PORT, () => { 
 console.log(`Server running on http://localhost:${PORT}`); 
