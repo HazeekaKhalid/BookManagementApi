@@ -4,8 +4,11 @@ const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const rateLimit = require("express-rate-limit");
+const fs = require("node:fs").promises;
+const path = require("node:path");
 
 const app = express();
+const DB_FILE = path.join(__dirname, "database.json");
 
 app.use(express.json());
 app.use(cors());
@@ -13,77 +16,86 @@ app.use(helmet());
 app.use(morgan("combined"));
 
 const apiLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, 
-    max: 100 
+    windowMs: 15 * 60 * 1000,
+    max: 100
 });
-
 app.use("/books", apiLimiter);
 
-const PORT = process.env.PORT || 3000;
- 
-let books = [ 
-  { id: 1, title: "The Harry Potter & The Philosopher's Stone", author: "J.K. Rowling" }, 
-  { id: 2, title: "Diary of a Wimpy Kid", author: "Jeff Kinney" } 
-]; 
- 
-app.get("/", (req, res) => { 
-  res.send("Welcome to Book API"); 
-}); 
- 
-app.get("/books", (req, res) => { 
-  res.json(books); 
-}); 
- 
-app.get("/books/:id", (req, res) => { 
-  const id = parseInt(req.params.id); 
-  const book = books.find(book => book.id === id); 
-  if (!book) { 
-    return res.status(404).json({ message: "Book not found" }); 
-  } 
-  res.json(book); 
-}); 
- 
-app.post("/books", (req, res) => { 
-  const newBook = { 
-    id: books.length === 0 ? 1 : Math.max(...books.map(book => book.id)) + 1, 
-    title: req.body.title, 
-    author: req.body.author 
-  }; 
-  books.push(newBook); 
-  res.status(201).json(newBook); 
-}); 
- 
-app.patch("/books/:id", (req, res) => { 
-  const id = parseInt(req.params.id); 
-  const book = books.find(book => book.id === id); 
-  if (!book) { 
-    return res.status(404).json({ message: "Book not found" }); 
-  } 
-  if (req.body.title) book.title = req.body.title; 
-  if (req.body.author) book.author = req.body.author; 
-  res.json(book); 
-}); 
- 
-app.delete("/books/:id", (req, res) => { 
-  const id = parseInt(req.params.id); 
-  const index = books.findIndex(book => book.id === id); 
-  if (index === -1) { 
-    return res.status(404).json({ message: "Book not found" }); 
-  }
+async function readLocalDB() {
+    try {
+        const data = await fs.readFile(DB_FILE, "utf8");
+        return JSON.parse(data);
+    } catch {
+        return [
+            { id: "1", title: "The Great Gatsby", author: "F. Scott Fitzgerald" },
+            { id: "2", title: "To Kill a Mockingbird", author: "Harper Lee" }
+        ];
+    }
+}
 
-  const deletedBook = books.splice(index, 1); 
-res.json({ message: "Book deleted", book: deletedBook[0] }); 
-}); 
+async function writeLocalDB(data) {
+    await fs.writeFile(DB_FILE, JSON.stringify(data, null, 2), "utf8");
+}
 
-app.get('/', (req, res) => {
-    res.send("Welcome to Book API");
+console.log("Connected to Local Persistent Database successfully!");
+
+app.get("/", (req, res) => {
+    res.send("Welcome to Book API with Local Persistent Database!");
 });
 
-    res.json({
-        status: "OK",
-        message: "API is running"
-    });
+app.get("/health", (req, res) => {
+    res.json({ status: "OK", message: "API is running offline" });
+});
 
-app.listen(PORT, () => { 
-console.log(`Server running on http://localhost:${PORT}`); 
-}); 
+app.get("/books", async (req, res) => {
+    const books = await readLocalDB();
+    res.json(books);
+});
+
+app.get("/books/:id", async (req, res) => {
+    const books = await readLocalDB();
+    const book = books.find(b => b.id === req.params.id);
+    if (!book) return res.status(404).json({ message: "Book not found" });
+    res.json(book);
+});
+
+app.post("/books", async (req, res) => {
+    const { title, author } = req.body;
+    if (!title || !author) {
+        return res.status(400).json({ error: "Title and author properties are required fields" });
+    }
+    const books = await readLocalDB();
+    const newBook = {
+        id: String(books.length > 0 ? Math.max(...books.map(b => Number(b.id))) + 1 : 1),
+        title,
+        author
+    };
+    books.push(newBook);
+    await writeLocalDB(books);
+    res.status(201).json(newBook);
+});
+
+app.patch("/books/:id", async (req, res) => {
+    const books = await readLocalDB();
+    const index = books.findIndex(b => b.id === req.params.id);
+    if (index === -1) return res.status(404).json({ message: "Book not found" });
+
+    books[index] = { ...books[index], ...req.body };
+    await writeLocalDB(books);
+    res.json(books[index]);
+});
+
+app.delete("/books/:id", async (req, res) => {
+    const books = await readLocalDB();
+    const filteredBooks = books.filter(b => b.id !== req.params.id);
+    if (books.length === filteredBooks.length) {
+        return res.status(404).json({ message: "Book not found" });
+    }
+    await writeLocalDB(filteredBooks);
+    res.json({ message: "Book deleted successfully" });
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+});
