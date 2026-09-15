@@ -59,7 +59,10 @@ app.delete("/books/:id", (req, res) => {
 res.json({ message: "Book deleted", book: deletedBook[0] }); 
 }); 
 
-app.get('/', (req, res) => res.send("Hello from main branch"));
+app.get('/', (req, res) => {
+    res.send("Welcome to Book API");
+});
+
     res.json({
         status: "OK",
         message: "API is running"
